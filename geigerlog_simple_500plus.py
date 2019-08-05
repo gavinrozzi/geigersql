@@ -91,7 +91,11 @@ import psycopg2                         # allows database access
 
 ## Database Settings
 
-def 
+def initdb()
+    try:
+    conn = psycopg2.connect("dbname='template1' user='dbuser' host='localhost' password='dbpass'")
+    except:
+    print "I am unable to connect to the database"
 
 def dprint(debug, *args):
     """Print only when debug== True"""
