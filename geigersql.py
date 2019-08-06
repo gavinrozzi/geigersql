@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 #
-# 'geigerlog_simple_500plus.py' fully supports GMC-500plus counters
+# 'geigersql.py' fully supports GMC-500plus counters
 # with double tubes. It collects data from both tubes 1st and 2nd, and
 # reports and logs the values combined (CPM, CPS) and separately (CPM1st,
 # CPM2nd, CPS1st, CPM2nd).
@@ -14,7 +14,7 @@
 #
 # Runs on both Python2 and Python3
 #
-# Start program from the command line with:   geigerlog_simple_500plus.py
+# Start program from the command line with:   GeigerSQL_simple_500plus.py
 # Stop program with:                          CTRL-C
 #
 # based on:
@@ -28,27 +28,27 @@
 
 
 ###############################################################################
-#    This file is part of GeigerLog.
+#    This file is part of GeigerSQL.
 #
-#    GeigerLog is free software: you can redistribute it and/or modify
+#    GeigerSQL is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    GeigerLog is distributed in the hope that it will be useful,
+#    GeigerSQL is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
 #
 #    You should have received a copy of the GNU General Public License
-#    along with GeigerLog.  If not, see <http://www.gnu.org/licenses/>.
+#    along with GeigerSQL.  If not, see <http://www.gnu.org/licenses/>.
 ###############################################################################
 
-__author__          = "ullix"
-__copyright__       = "Copyright 2016, 2017, 2018"
+__author__          = "ullix, gavinrozzi"
+__copyright__       = "Copyright 2016, 2017, 2018, 2019"
 __credits__         = [""]
 __license__         = "GPL3"
-__version__         = "0.2.2"
+__version__         = "0.1"
 
 
 ###############################################################################
@@ -90,12 +90,11 @@ import serial.tools.list_ports          # allows listing of serial ports
 import psycopg2                         # allows database access
 
 ## Database Settings
+## CHANGE THESE TO MATCH YOUR DATABASE
 
-def initdb()
-    try:
-    conn = psycopg2.connect("dbname='template1' user='dbuser' host='localhost' password='dbpass'")
-    except:
-    print "I am unable to connect to the database"
+conn = psycopg2.connect("dbname='radiation' user='postgres' host='YOURHOST' password='CHANGEME'")
+conn.autocommit = True
+cur = conn.cursor()
 
 def dprint(debug, *args):
     """Print only when debug== True"""
@@ -123,7 +122,7 @@ def getExtraByte():
     """read single bytes until no further bytes coming, and return combined bytes"""
 
     xrec = b""
-    try: # failed when called from 2nd instance of GeigerLog; just to avoid error
+    try: # failed when called from 2nd instance of GeigerSQL; just to avoid error
         bytesWaiting = ser.in_waiting
     except:
         bytesWaiting = 0
@@ -188,12 +187,12 @@ def BugAlert():
 
     Device GMC-500+
     If it has firmware 1.18 then it will report an empty version on the first connect.
-    Start this 'geigerlog_simple_500.py' program again, and it should work.
+    Start this 'GeigerSQL_simple_500.py' program again, and it should work.
     It is recommended to upgrade the firmware (current new version: 1.21).
     Contact GQ support for the upgrade.
 
     If your counter has a newer firmware than 1.21, you can adapt this
-    'geigerlog_simple_500.py' program by adding a new entry under the
+    'GeigerSQL_simple_500.py' program by adding a new entry under the
     'Customize Here' section beginning at about line 55 of the program code.
     """
 
@@ -325,7 +324,7 @@ print(" ")
 
 
 # Print versions and settings
-print("{:50s} : {}".format("my Version of geigerlog_simple_500plus.py", __version__))
+print("{:50s} : {}".format("my Version of GeigerSQL_simple_500plus.py", __version__))
 print("{:50s} : {}".format("my Python Version", sys.version.split(" ")[0]))
 print(" ")
 if sys.version_info[0] != 3 and sys.version_info[0] != 2:
@@ -351,7 +350,7 @@ if len(my_counter_version) == 0:
     e1 = """
 ERROR:
     The Geiger counter gave no answer to the version request.
-    Cannot continue without version. Try restarting geigerlog.
+    Cannot continue without version. Try restarting GeigerSQL.
     Perhaps the counter needs to be rebootet or even Factory resetted!
     """
     print(e1)
@@ -362,7 +361,7 @@ if len(my_counter_version) not in (14, 15):
     e2 = """
 ERROR:
     The Geiger counter gave incomplete answer to the version request.
-    Cannot continue without proper version. Try restarting geigerlog.
+    Cannot continue without proper version. Try restarting GeigerSQL.
     Perhaps the counter needs to be rebootet or even Factory resetted!
     """
     print(e2)
@@ -372,7 +371,7 @@ ERROR:
 if not "GMC-" in my_counter_version:
     e3 = """
     ERROR: The Geiger counter gave an improper answer to the version request.
-    Cannot continue without proper version. Try restarting geigerlog.
+    Cannot continue without proper version. Try restarting GeigerSQL.
     Perhaps the counter needs to be rebootet or even Factory resetted!
     """
     print(e3)
@@ -387,7 +386,7 @@ print("")
 
 # open the logfile for writing, clearing previous content
 with open(my_logfile, 'w') as log:
-    log.write("# Log file created with: 'geigerlog_simple_500plus.py', Version: {}\n".format(__version__))
+    log.write("# Log file created with: 'GeigerSQL_simple_500plus.py', Version: {}\n".format(__version__))
     log.write("# Python Version: {}\n".format(sys.version.replace('\n', "")))
     log.write("# Index,            DateTime,    CPM,    CPS, CPM1st, CPM2nd, CPS1st, CPS2nd\n")
 
@@ -409,7 +408,11 @@ while True:
 
 # for TESTING ONLY
     #cps2nd = getTest(ser)                  # call a test funktion
-
+    cur.execute("""
+     INSERT INTO cpm (timestamp, cpm, cps)
+     VALUES (%s, %s, %s);
+     """,
+    (ts, cpm, cps))
     cpxlist = (index, ts, cpm, cps, cpm1st, cpm2nd, cps1st, cps2nd)
     print ("{} {}, CPM={}, CPS={}, CPM1st={}, CPM2nd={}, CPS1st={}, CPS2nd={}"           .format(*cpxlist))
     with open(my_logfile, 'a') as log:
@@ -417,4 +420,3 @@ while True:
 
     time.sleep(my_cycletime)               # sleep for my_cycletime seconds
     index += 1
-
